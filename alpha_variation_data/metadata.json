@@ -1,0 +1,46 @@
+{
+  "creation_date": "2025-11-27",
+  "framework": "MRRC V5.0",
+  "datasets": {
+    "quasar": {
+      "description": "Quasar absorption line \u0394\u03b1/\u03b1 measurements",
+      "source": "Webb et al. (2011) and subsequent publications",
+      "n_measurements": 50,
+      "redshift_range": [
+        0.8,
+        2.5
+      ],
+      "precision": "~1-3 \u00d7 10\u207b\u2076",
+      "key_result": "Spatial dipole with amplitude ~10\u207b\u2075"
+    },
+    "atomic_clocks": {
+      "description": "Laboratory atomic clock comparisons",
+      "source": "NIST, PTB, RIKEN publications",
+      "n_measurements": 4,
+      "precision": "~10\u207b\u00b9\u2077",
+      "key_result": "Null result, tight constraints"
+    },
+    "pulsars": {
+      "description": "Millisecond pulsar targets for X-ray spectroscopy",
+      "source": "ATNF Pulsar Catalogue",
+      "n_targets": 6,
+      "status": "Future observations",
+      "expected_precision": "~10\u207b\u2076 to 10\u207b\u2077"
+    }
+  },
+  "mrrc_hypotheses": {
+    "H1": "\u03b1 varies with gravitational potential (\u0394\u03b1/\u03b1 ~ \u03b2\u00b7\u03a6/c\u00b2)",
+    "H2": "\u03b1 varies with rotation (\u0394\u03b1/\u03b1 ~ \u03b3\u00b7(\u03c9/\u03c9_c)\u00b2)",
+    "predicted_magnitude": {
+      "gravitational": "~10\u207b\u00b9\u2078 (Earth-satellite)",
+      "rotational": "~10\u207b\u2078 (millisecond pulsars)",
+      "cosmological": "~10\u207b\u2075 (quasar dipole)"
+    }
+  },
+  "references": [
+    "Webb et al. (2011) Phys. Rev. Lett. 107, 191101",
+    "Godun et al. (2014) Phys. Rev. Lett. 113, 210801",
+    "Rosenband et al. (2008) Science 319, 1808",
+    "King et al. (2012) MNRAS 422, 3370"
+  ]
+}

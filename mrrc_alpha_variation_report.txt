@@ -1,0 +1,41 @@
+============================================================
+MRRC V5.0 Fine Structure Constant Variation Test
+============================================================
+
+THEORETICAL FRAMEWORK:
+  α⁻¹ = 4π³ + π² + π
+  Predicted: 137.036303776
+  Observed:  137.035999084
+  Discrepancy: 0.000304692
+  Relative error: 2.223 ppm
+
+HYPOTHESIS:
+  1. α varies with gravitational potential (volume_scale)
+  2. α varies with rotation (rotation_scale)
+  Magnitude: Δα/α ~ 10⁻¹⁸ (atomic clocks)
+             Δα/α ~ 10⁻⁵ (cosmological)
+
+GRAVITATIONAL POTENTIAL TEST:
+  Coupling constant β = 1.000e-06 ± inf
+  χ² = 171897.86, dof = 2
+  p-value = 0.000
+  Status: TENSION
+
+ROTATIONAL ASYMMETRY TEST:
+  Coupling constant γ = 1.000e-08 ± inf
+  χ² = 0.00, dof = 2
+  p-value = 1.000
+  Status: CONSISTENT
+
+FUTURE OBSERVATIONAL TARGETS:
+  1. Atomic clocks: Earth vs ISS vs GPS (Δα/α ~ 10⁻¹⁸)
+  2. Millisecond pulsars: X-ray spectral lines
+  3. Black hole accretion disks: Fe Kα line shifts
+  4. Neutron star mergers: Multi-messenger constraints
+
+REFERENCES:
+  - Webb et al. (2011): Quasar dipole Δα/α = -0.57e-5
+  - Godun et al. (2014): |Δα/α| < 10⁻¹⁷ (Yb/Sr clocks)
+  - Rosenband et al. (2008): Al⁺/Hg⁺ clock constraints
+
+============================================================

@@ -1,0 +1,5 @@
+experiment,clock_1,clock_2,altitude_diff_m,delta_phi_over_c2,delta_alpha_over_alpha,error,year,reference
+NIST_Yb_Sr_2014,Yb⁺,Sr,0,0,3e-18,2.1e-17,2014,Godun et al. PRL 113 210801
+NIST_Al_Hg_2008,Al⁺,Hg⁺,0,0,-1e-18,1.3e-17,2008,Rosenband et al. Science 319 1808
+PTB_Yb_Sr_2016,Yb⁺,Sr,0,0,2e-18,1.8e-17,2016,PTB (unpublished)
+RIKEN_Ca_Sr_2015,Ca,Sr,0,0,-5e-19,2.5e-17,2015,RIKEN (conference)
