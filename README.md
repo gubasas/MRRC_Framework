@@ -36,3 +36,12 @@ Hypotheses:
 Notes:
 - Scripts save figures to PNG and do not block on display.
 - Replace paths/commands as needed if running outside macOS system Python.
+
+Docs walkthroughs:
+```bash
+/usr/local/bin/python3 docs/alpha_variation_walkthrough.py
+```
+Open `docs/alpha_variation_walkthrough.ipynb` in VS Code to run cells.
+
+CI artifacts:
+- On push to `main`, GitHub Actions uploads `mrrc_alpha_variation_report.txt` and `mrrc_alpha_variation_analysis.png` to the workflow run artifacts.
