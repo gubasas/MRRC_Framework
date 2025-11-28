@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import os
+from alpha_variation_data import ingestion
 
 """
 Atomic clock gravitational potential test
@@ -10,7 +12,11 @@ Atomic clock gravitational potential test
 """
 
 def load_data():
-    return pd.read_csv(Path('alpha_variation_data/alpha_variation_clock_data.csv'))
+    override = os.getenv('CLOCK_CATALOG_PATH')
+    df = ingestion.load_atomic_clock_constraints(override) if override else ingestion.load_atomic_clock_constraints()
+    if (df.get('source') == 'simulated').all():
+        raise RuntimeError('Clock dataset is simulated. Set CLOCK_CATALOG_PATH to a real constraints CSV.')
+    return df
 
 
 def fit_beta(df):

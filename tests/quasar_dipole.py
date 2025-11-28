@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import os
+from alpha_variation_data import ingestion
 
 """
 Quick quasar dipole test
@@ -11,7 +13,10 @@ Quick quasar dipole test
 """
 
 def load_data():
-    df = pd.read_csv(Path('alpha_variation_data/alpha_variation_quasar_data.csv'))
+    override = os.getenv('QUASAR_CATALOG_PATH')
+    df = ingestion.load_quasar_catalog(override) if override else ingestion.load_quasar_catalog()
+    if (df.get('source') == 'simulated').all():
+        raise RuntimeError('Quasar dataset is simulated. Set QUASAR_CATALOG_PATH to a real catalog CSV.')
     return df
 
 
