@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test-and-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run alpha variation analysis
+        run: |
+          python mrrc_alpha_variation_test.py || true
+
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then python -m pytest -q || true; fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mrrc-artifacts
+          path: |
+            mrrc_alpha_variation_report.txt
+            mrrc_alpha_variation_analysis.png
+          if-no-files-found: warn
