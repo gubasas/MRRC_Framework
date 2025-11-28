@@ -24,6 +24,7 @@ Run individual tests:
 ```bash
 /usr/local/bin/python3 tests/quasar_dipole.py
 /usr/local/bin/python3 tests/atomic_clocks.py
+/usr/local/bin/python3 tests/cbr_cmb.py
 /usr/local/bin/python3 simulations/ca_mrrc.py
 /usr/local/bin/python3 analysis/fe_ka_latency.py
 ```
@@ -37,11 +38,32 @@ Notes:
 - Scripts save figures to PNG and do not block on display.
 - Replace paths/commands as needed if running outside macOS system Python.
 
+Atomic clock dataset (provisional drift constraints):
+
+| Clock Pair | Epoch | (dα/α)/dt (yr⁻¹) | 1σ | ΔK_α | Reference |
+|------------|-------|------------------|-----|-------|-----------|
+| Al⁺/Hg⁺ | 2000–2007 | -1.6×10⁻¹⁷ | 2.3×10⁻¹⁷ | 3.2 | Rosenband et al. Science 319 (2008) |
+| Yb⁺ (E3/E2) | 2009–2013 | -0.7×10⁻¹⁷ | 2.1×10⁻¹⁷ | 7.0 | Godun et al. PRL 113 (2014) |
+| Dysprosium | 2013 | -5.8×10⁻¹⁷ | 6.9×10⁻¹⁷ | ~1×10⁸ | Leefer et al. PRL 111 (2013) |
+| Sr/Cs | 2012 | -5.5×10⁻¹⁵ | 4.8×10⁻¹⁵ | 0.06 | Guéna et al. PRL 109 (2012) |
+| Hg⁺/Sr | 2007 | 0.0 | 2.3×10⁻¹⁶ | 1.3 | Fortier et al. PRL 98 (2007) |
+| Yb⁺/Sr | 2016 | 4.0×10⁻¹⁸ | 8.0×10⁻¹⁸ | 5.0 | Nemitz et al. Nat Photonics 10 (2016) |
+
+CSV: `alpha_variation_data/alpha_variation_clock_data.csv` contains these rows. Annual modulation amplitudes were not included (not all primary sources report a resolved seasonal signal); potential-based β fits currently exclude pure drift rows.
+
+Review source: Ludlow et al. (arXiv:1407.0164) used for consolidated sensitivity coefficients ΔK_α. Replace provisional numbers with direct extraction if higher precision updates are added.
+
 Docs walkthroughs:
 ```bash
 /usr/local/bin/python3 docs/alpha_variation_walkthrough.py
 ```
 Open `docs/alpha_variation_walkthrough.ipynb` in VS Code to run cells.
+
+Make targets (optional):
+```bash
+make analysis   # main α-variation pipeline
+make cmb        # CMB consistency test (report + plot)
+```
 
 CI artifacts:
 - On push to `main`, GitHub Actions uploads `mrrc_alpha_variation_report.txt` and `mrrc_alpha_variation_analysis.png` to the workflow run artifacts.

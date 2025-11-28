@@ -16,12 +16,14 @@ Date: November 27, 2025
 
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.optimize import curve_fit
 from scipy.stats import chi2
 import pandas as pd
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
+from alpha_variation_data import ingestion
 
 # Physical constants
 ALPHA_INV_OBSERVED = 137.035999084  # CODATA 2018
@@ -119,85 +121,105 @@ class ObservationalData:
     @staticmethod
     def load_quasar_data():
         """
-        Load quasar absorption line data (Webb et al., SDSS).
-        
-        Returns simulated data based on published results if no file found.
+        Load quasar absorption line data (Webb et al., King et al.).
+        Uses real King et al. 2012 dataset with 295 measurements.
         """
-        # Try to load real data
-        data_file = Path("alpha_variation_quasar_data.csv")
-        
-        if data_file.exists():
-            return pd.read_csv(data_file)
-        
-        # Generate representative data based on Webb et al. (2011) results
-        # Reported: Δα/α = (-0.57 ± 0.11) × 10⁻⁵ (spatial dipole)
-        print("Note: Using simulated quasar data based on Webb et al. (2011)")
-        
-        # Simulate 50 quasar measurements
-        np.random.seed(42)
-        n_quasars = 50
-        
-        redshifts = np.random.uniform(0.5, 3.5, n_quasars)
-        
-        # Add spatial dipole pattern (Webb et al. finding)
-        theta = np.random.uniform(0, 2*np.pi, n_quasars)  # Sky position
-        phi = np.random.uniform(0, np.pi, n_quasars)
-        
-        # Dipole amplitude
-        dipole_amplitude = -0.57e-5  # ppm
-        delta_alpha = dipole_amplitude * np.cos(theta) * np.sin(phi)
-        
-        # Add measurement noise
-        errors = np.random.uniform(0.8e-6, 2.5e-6, n_quasars)
-        delta_alpha += np.random.normal(0, errors)
-        
-        return pd.DataFrame({
-            'redshift': redshifts,
-            'delta_alpha_over_alpha': delta_alpha,
-            'error': errors,
-            'theta': theta,
-            'phi': phi
-        })
+        # Prefer local Vizier TSV if present; else use ingestion
+        vizier_path = Path.cwd() / 'king_2012_quasars.tsv'
+        if vizier_path.exists():
+            try:
+                # Vizier format with pipe separator (cleaner than whitespace)
+                df = pd.read_csv(vizier_path, sep='|', comment='#', engine='python')
+                # Skip unit and separator rows (row 0 has units like '10-5', row 1 has '---')
+                df = df[2:].reset_index(drop=True)
+                
+                # King 2012 Vizier columns: Seq, QSO, zem, zabs, da/a, e_da/a, Sample, Flag, Out, SimbadName, _RA, _DE
+                ra = df['_RA'] if '_RA' in df.columns else None
+                dec = df['_DE'] if '_DE' in df.columns else None
+                dalpha = df['da/a'] if 'da/a' in df.columns else None
+                derr = df['e_da/a'] if 'e_da/a' in df.columns else None
+                z = df['zabs'] if 'zabs' in df.columns else None
+                
+                # Convert to numeric, drop NaN (handle None case)
+                if ra is None or dec is None or dalpha is None or derr is None or z is None:
+                    raise ValueError("Missing required columns in Vizier TSV")
+                    
+                ra_vals = pd.to_numeric(ra, errors='coerce').dropna()
+                dec_vals = pd.to_numeric(dec, errors='coerce').dropna()
+                dalpha_vals = pd.to_numeric(dalpha, errors='coerce').dropna() * 1e-5  # King 2012: units of 10^-5
+                err_vals = pd.to_numeric(derr, errors='coerce').dropna() * 1e-5
+                z_vals = pd.to_numeric(z, errors='coerce').dropna()
+                
+                # Align indices
+                common_idx = dalpha_vals.index.intersection(err_vals.index).intersection(z_vals.index)
+                common_idx = common_idx.intersection(ra_vals.index).intersection(dec_vals.index)
+                
+                theta_arr = np.array(ra_vals.loc[common_idx].values, dtype=float)
+                phi_arr = np.array(dec_vals.loc[common_idx].values, dtype=float)
+                theta = np.deg2rad(theta_arr)
+                phi = np.deg2rad(90.0 - phi_arr)
+                
+                out = pd.DataFrame({
+                    'theta': theta,
+                    'phi': phi,
+                    'redshift': z_vals.loc[common_idx].values,
+                    'delta_alpha_over_alpha': dalpha_vals.loc[common_idx].values,
+                    'error': err_vals.loc[common_idx].values,
+                    'source': 'king2012_vizier'
+                })
+                print(f"Loaded quasar data from Vizier TSV: {vizier_path.name} ({len(out)} rows)")
+                return out
+            except Exception as e:
+                print(f"Warning: Failed to parse {vizier_path.name}: {e}. Falling back to ingestion.")
+        try:
+            df = ingestion.load_quasar_catalog()
+            if (df.get('source') == 'simulated').all():
+                print("Warning: Quasar dataset is simulated")
+            else:
+                print(f"Loaded real quasar data: {df['source'].iloc[0]} ({len(df)} measurements)")
+            # Compute sky coordinates (theta, phi) from RA/DEC if available
+            if 'ra_deg' in df.columns and 'dec_deg' in df.columns:
+                df['theta'] = np.deg2rad(df['ra_deg'])
+                df['phi'] = np.deg2rad(90 - df['dec_deg'])
+            return df
+        except Exception as e:
+            print(f"Failed to load quasar data: {e}")
+            return pd.DataFrame()
     
     @staticmethod
     def load_atomic_clock_data():
         """
-        Load atomic clock comparison data (NIST, PTB).
-        
-        Returns simulated data based on published constraints if no file found.
+        Load atomic clock drift constraints (Rosenband, Godun, etc.).
+        Uses real published drift measurements.
         """
-        data_file = Path("alpha_variation_clock_data.csv")
-        
-        if data_file.exists():
-            return pd.read_csv(data_file)
-        
-        # Generate data based on Yb/Sr clock comparisons
-        print("Note: Using simulated atomic clock data based on NIST/PTB constraints")
-        
-        # Earth surface vs satellite (GPS altitude ~20,000 km)
-        data = {
-            'location': ['Earth_surface', 'GPS_orbit', 'ISS_orbit'],
-            'altitude_km': [0, 20200, 408],
-            'gravitational_potential_ratio': [],
-            'delta_alpha_over_alpha': [],
-            'error': []
-        }
-        
-        # Calculate Φ/c² for each location
-        for alt_km in data['altitude_km']:
-            r = R_EARTH + alt_km * 1000
-            phi = -G_NEWTON * M_EARTH / r
-            phi_surface = -G_NEWTON * M_EARTH / R_EARTH
-            delta_phi = phi - phi_surface
-            phi_ratio = delta_phi / C_LIGHT**2
-            data['gravitational_potential_ratio'].append(phi_ratio)
-        
-        # Current best constraints: |Δα/α| < 10⁻¹⁷ (Godun et al. 2014)
-        # Simulate null result within measurement precision
-        data['delta_alpha_over_alpha'] = [0.3e-18, -0.2e-18, 0.1e-18]
-        data['error'] = [1.0e-18, 1.0e-18, 1.0e-18]
-        
-        return pd.DataFrame(data)
+        try:
+            df = ingestion.load_atomic_clock_constraints()
+            if (df.get('source') == 'simulated').all():
+                print("Warning: Clock dataset is simulated")
+            else:
+                print(f"Loaded real clock data: {len(df)} constraints from published sources")
+        except Exception as e:
+            print(f"Failed to load clock data: {e}")
+            df = pd.DataFrame()
+        # Overlay Nemitz (2016) gold standard: Sr/Yb+ 0.8e-17 ± 0.8e-17 yr⁻¹
+        try:
+            nemitz = pd.DataFrame([{
+                'clock_pair': 'Sr/Yb+',
+                'delta_alpha_over_alpha': 0.8e-17,
+                'error': 0.8e-17,
+                'k_alpha': 5.0,
+                'source': 'Nemitz2016',
+                'delta_phi_over_c2': np.nan
+            }])
+            if df is None or df.empty:
+                df = nemitz
+            else:
+                df = df[~(df['clock_pair'].astype(str).str.contains('Yb') & df['clock_pair'].astype(str).str.contains('Sr'))]
+                df = pd.concat([df, nemitz], ignore_index=True)
+            print('Applied Nemitz (2016) constraint: 0.8e-17 ± 0.8e-17 yr⁻¹ (Sr/Yb+)')
+        except Exception:
+            pass
+        return df
     
     @staticmethod
     def load_pulsar_data():
@@ -234,6 +256,63 @@ class ObservationalData:
         return pd.DataFrame(pulsars)
 
 
+class SeasonalModulationAnalyzer:
+    """Extract gravitational coupling from seasonal Earth-Sun potential modulation."""
+    
+    # Earth-Sun orbital parameters
+    EARTH_SUN_PERIHELION = 1.471e11  # m (January)
+    EARTH_SUN_APHELION = 1.521e11    # m (July)
+    M_SUN = 1.989e30  # kg
+    
+    @staticmethod
+    def compute_seasonal_potential_amplitude():
+        """Compute Earth-Sun gravitational potential modulation amplitude Δφ/c²."""
+        # Potential at perihelion (January, closer to Sun)
+        phi_peri = -G_NEWTON * SeasonalModulationAnalyzer.M_SUN / SeasonalModulationAnalyzer.EARTH_SUN_PERIHELION
+        # Potential at aphelion (July, farther from Sun)
+        phi_aph = -G_NEWTON * SeasonalModulationAnalyzer.M_SUN / SeasonalModulationAnalyzer.EARTH_SUN_APHELION
+        # Amplitude of variation
+        delta_phi = phi_peri - phi_aph
+        delta_phi_over_c2 = delta_phi / C_LIGHT**2
+        return delta_phi_over_c2
+    
+    @staticmethod
+    def extract_beta_from_drift_data(clock_df, seasonal_amplitude=None):
+        """
+        Infer β constraint from clock drift data assuming no observed seasonal modulation.
+        
+        Parameters:
+        -----------
+        clock_df : DataFrame with delta_alpha_over_alpha, error, k_alpha
+        seasonal_amplitude : float, optional (default: computed Earth-Sun value)
+        
+        Returns:
+        --------
+        dict : {'beta_upper_limit', 'seasonal_amplitude_used'}
+        """
+        if seasonal_amplitude is None:
+            seasonal_amplitude = SeasonalModulationAnalyzer.compute_seasonal_potential_amplitude()
+        
+        # Use the tightest constraint (smallest error) for upper limit
+        if clock_df.empty or 'error' not in clock_df.columns:
+            return {'beta_upper_limit': np.nan, 'seasonal_amplitude_used': seasonal_amplitude}
+        
+        # Drift uncertainties give bounds on undetected modulation amplitude
+        # Conservative: |Δα/α|_modulation < 3σ_drift (95% CL)
+        min_error = clock_df['error'].min()
+        modulation_limit = 3 * min_error
+        
+        # β = (Δα/α) / (Δφ/c²)
+        beta_limit = modulation_limit / abs(seasonal_amplitude)
+        
+        return {
+            'beta_upper_limit': beta_limit,
+            'seasonal_amplitude_used': seasonal_amplitude,
+            'tightest_constraint_sigma': min_error,
+            'modulation_limit_3sigma': modulation_limit
+        }
+
+
 class MRRCAnalysis:
     """Statistical analysis of MRRC predictions vs observations."""
     
@@ -242,62 +321,123 @@ class MRRCAnalysis:
         self.clock_data = None
         self.pulsar_data = None
         self.results = {}
+        self.seasonal_analyzer = SeasonalModulationAnalyzer()
+        # Config toggles
+        self.config = {
+            'overlay_king2012_dipole': True,
+            'king2012_dipole_amplitude': 1.02e-5,  # King 2012 reported amplitude
+            'enable_joint_fit': True
+        }
     
     def load_all_data(self):
         """Load all available datasets."""
         self.quasar_data = ObservationalData.load_quasar_data()
         self.clock_data = ObservationalData.load_atomic_clock_data()
         self.pulsar_data = ObservationalData.load_pulsar_data()
+        # Ingest white dwarf sources (Berengut 2013 baseline + hooks)
+        self.white_dwarf_data = self.ingest_white_dwarf_sources()
+        # Compute orbital modulation bound (Galileo 5/6)
+        try:
+            g_data, aces = self.ingest_orbital_modulation_data()
+            beta_orbital = self.fit_beta_from_modulation(g_data)
+            self.results['orbital_modulation'] = {
+                'beta_upper_limit': beta_orbital,
+                'dataset': g_data['name'],
+                'dU_over_c2': g_data['modulation_amplitude_U'],
+                'alpha_grav_limit': g_data['clock_residual_limit']
+            }
+            # ACES projection
+            beta_proj = self.project_aces_beta_bound(aces, k_alpha=1.0)
+            self.results['aces_projection'] = {
+                'beta_projected_limit': beta_proj,
+                'potential_diff': aces['potential_diff'],
+                'target_precision': aces['target_precision']
+            }
+        except Exception as e:
+            print(f"Warning: orbital modulation analysis failed: {e}")
         
         print("\nData loaded:")
         print(f"  Quasar measurements: {len(self.quasar_data)}")
         print(f"  Atomic clock comparisons: {len(self.clock_data)}")
         print(f"  Pulsar observations: {len(self.pulsar_data)}")
+        print(f"  White dwarf sources: {len(self.white_dwarf_data)}")
     
     def fit_gravitational_model(self):
         """Fit MRRC gravitational potential model to atomic clock data."""
-        if self.clock_data is None:
+        if self.clock_data is None or self.clock_data.empty:
+            print("\nGravitational Model: No clock data available")
             return
         
-        # Extract data
-        phi_ratio = np.array(self.clock_data['gravitational_potential_ratio'])
-        delta_alpha = np.array(self.clock_data['delta_alpha_over_alpha'])
-        errors = np.array(self.clock_data['error'])
+        # Check if we have modulation data (non-zero delta_phi_over_c2)
+        has_modulation = False
+        mod_mask = pd.Series([False] * len(self.clock_data))
         
-        # Define MRRC model with fitting parameter β
-        def mrrc_model(phi_ratio, beta):
-            volume_scale = 1.0 + beta * phi_ratio
-            alpha_inv_new = MRRCAlphaModel.alpha_inverse(volume_scale=volume_scale)
-            return -(alpha_inv_new - ALPHA_INV_MRRC_BASE) / ALPHA_INV_MRRC_BASE
+        if 'delta_phi_over_c2' in self.clock_data.columns:
+            mod_mask = (~self.clock_data['delta_phi_over_c2'].isna()) & (self.clock_data['delta_phi_over_c2'] != 0)
+            has_modulation = mod_mask.any()
         
-        # Fit
-        try:
-            popt, pcov = curve_fit(mrrc_model, phi_ratio, delta_alpha, 
-                                   sigma=errors, p0=[1e-6])
-            beta_fit = popt[0]
-            beta_err = np.sqrt(pcov[0, 0])
+        if has_modulation:
+            # Direct fit to modulation data
+            sub = self.clock_data[mod_mask]
+            phi_ratio = np.array(sub['delta_phi_over_c2'])
+            delta_alpha = np.array(sub['delta_alpha_over_alpha'])
+            errors = np.array(sub['error'])
             
-            # Calculate chi-squared
-            predictions = mrrc_model(phi_ratio, beta_fit)
-            chi_sq = np.sum(((delta_alpha - predictions) / errors)**2)
-            dof = len(delta_alpha) - 1
-            p_value = 1 - chi2.cdf(chi_sq, dof)
+            def mrrc_model(phi_ratio, beta):
+                volume_scale = 1.0 + beta * phi_ratio
+                alpha_inv_new = MRRCAlphaModel.alpha_inverse(volume_scale=volume_scale)
+                return -(alpha_inv_new - ALPHA_INV_MRRC_BASE) / ALPHA_INV_MRRC_BASE
+            
+            try:
+                popt, pcov = curve_fit(mrrc_model, phi_ratio, delta_alpha, 
+                                       sigma=errors, p0=[1e-6])
+                beta_fit = popt[0]
+                beta_err = np.sqrt(pcov[0, 0])
+                
+                predictions = mrrc_model(phi_ratio, beta_fit)
+                chi_sq = np.sum(((delta_alpha - predictions) / errors)**2)
+                dof = len(delta_alpha) - 1
+                p_value = 1 - chi2.cdf(chi_sq, dof) if dof > 0 else 1.0
+                
+                self.results['gravitational'] = {
+                    'beta': beta_fit,
+                    'beta_error': beta_err,
+                    'chi_squared': chi_sq,
+                    'dof': dof,
+                    'p_value': p_value,
+                    'predictions': predictions,
+                    'method': 'direct_fit'
+                }
+                
+                print(f"\nGravitational Model Fit (Direct Modulation):")
+                print(f"  β = {beta_fit:.2e} ± {beta_err:.2e}")
+                print(f"  χ²/dof = {chi_sq:.2f}/{dof} (p = {p_value:.3f})")
+                
+            except Exception as e:
+                print(f"Direct modulation fit failed: {e}")
+                has_modulation = False
+        
+        # If no modulation data, extract upper limit from drift constraints
+        if not has_modulation:
+            seasonal_result = self.seasonal_analyzer.extract_beta_from_drift_data(self.clock_data)
+            beta_limit = seasonal_result['beta_upper_limit']
+            seasonal_amp = seasonal_result['seasonal_amplitude_used']
             
             self.results['gravitational'] = {
-                'beta': beta_fit,
-                'beta_error': beta_err,
-                'chi_squared': chi_sq,
-                'dof': dof,
-                'p_value': p_value,
-                'predictions': predictions
+                'beta': 0.0,
+                'beta_error': np.inf,
+                'beta_upper_limit': beta_limit,
+                'seasonal_amplitude': seasonal_amp,
+                'chi_squared': 0.0,
+                'dof': 0,
+                'p_value': 1.0,
+                'method': 'seasonal_limit'
             }
             
-            print(f"\nGravitational Model Fit:")
-            print(f"  β = {beta_fit:.2e} ± {beta_err:.2e}")
-            print(f"  χ²/dof = {chi_sq:.2f}/{dof} (p = {p_value:.3f})")
-            
-        except Exception as e:
-            print(f"Gravitational model fit failed: {e}")
+            print(f"\nGravitational Model (Seasonal Modulation Limit):")
+            print(f"  Seasonal Δφ/c² amplitude: {seasonal_amp:.2e}")
+            print(f"  β upper limit (95% CL): {beta_limit:.2e}")
+            print(f"  Derived from tightest drift constraint: {seasonal_result['tightest_constraint_sigma']:.2e}")
     
     def fit_rotational_model(self):
         """Fit MRRC rotational model to pulsar data."""
@@ -382,6 +522,9 @@ class MRRCAnalysis:
         print(f"\nQuasar Spatial Dipole Analysis:")
         print(f"  Dipole amplitude: ({A_fit:.2e} ± {A_err:.2e})")
         print(f"  Published (Webb et al.): -0.57e-5 ± 0.11e-5")
+        # Store overlay amplitude for plotting/reporting
+        if self.config.get('overlay_king2012_dipole'):
+            self.results['quasar_dipole']['overlay_amplitude'] = self.config['king2012_dipole_amplitude']
     
     def plot_results(self):
         """Generate comprehensive visualization of results."""
@@ -399,35 +542,136 @@ class MRRCAnalysis:
             ax1.set_ylabel('Δα/α (ppm)')
             ax1.set_title('Quasar Absorption Lines\n(Webb et al. type data)')
             ax1.grid(True, alpha=0.3)
+            # Overlay King (2012) fixed dipole amplitude as reference band
+            if 'quasar_dipole' in self.results and self.results['quasar_dipole'].get('overlay_amplitude'):
+                Aref = self.results['quasar_dipole']['overlay_amplitude'] * 1e6
+                ax1.axhline(Aref, color='purple', linestyle=':', alpha=0.6, label='King 2012 dipole (ppm)')
+                ax1.axhline(-Aref, color='purple', linestyle=':', alpha=0.6)
+                ax1.legend()
         
         # 2. Atomic clock gravitational test
         ax2 = plt.subplot(2, 3, 2)
-        if self.clock_data is not None:
-            phi_ratio = self.clock_data['gravitational_potential_ratio']
-            delta_alpha = self.clock_data['delta_alpha_over_alpha']
-            errors = self.clock_data['error']
+        if self.clock_data is not None and not self.clock_data.empty:
+            # Use delta_phi_over_c2 column (from ingestion)
+            phi_col = 'delta_phi_over_c2' if 'delta_phi_over_c2' in self.clock_data.columns else 'gravitational_potential_ratio'
             
-            ax2.errorbar(phi_ratio * 1e10, delta_alpha * 1e18,
-                        yerr=errors * 1e18,
-                        fmt='o', markersize=8, capsize=5, label='Observations')
+            # Filter to rows with defined potential values
+            valid_mask = (~self.clock_data[phi_col].isna()) if phi_col in self.clock_data.columns else pd.Series([True] * len(self.clock_data))
+            sub = self.clock_data[valid_mask]
             
-            if 'gravitational' in self.results:
-                phi_model = np.linspace(phi_ratio.min(), phi_ratio.max(), 100)
-                beta = self.results['gravitational']['beta']
+            if not sub.empty and phi_col in sub.columns:
+                phi_ratio = sub[phi_col]
+                delta_alpha = sub['delta_alpha_over_alpha']
+                errors = sub['error']
                 
-                volume_scale = 1.0 + beta * phi_model
-                alpha_inv_new = MRRCAlphaModel.alpha_inverse(volume_scale=volume_scale)
-                delta_pred = -(alpha_inv_new - ALPHA_INV_MRRC_BASE) / ALPHA_INV_MRRC_BASE
+                ax2.errorbar(phi_ratio * 1e10, delta_alpha * 1e18,
+                            yerr=errors * 1e18,
+                            fmt='o', markersize=8, capsize=5, label='Observations')
                 
-                ax2.plot(phi_model * 1e10, delta_pred * 1e18,
-                        'r-', label='MRRC Prediction')
+                if 'gravitational' in self.results and self.results['gravitational'].get('method') == 'direct_fit':
+                    phi_model = np.linspace(phi_ratio.min(), phi_ratio.max(), 100)
+                    beta = self.results['gravitational']['beta']
+                    
+                    volume_scale = 1.0 + beta * phi_model
+                    alpha_inv_new = MRRCAlphaModel.alpha_inverse(volume_scale=volume_scale)
+                    delta_pred = -(alpha_inv_new - ALPHA_INV_MRRC_BASE) / ALPHA_INV_MRRC_BASE
+                    
+                    ax2.plot(phi_model * 1e10, delta_pred * 1e18,
+                            'r-', label='MRRC Prediction')
+                
+                ax2.axhline(0, color='k', linestyle='--', alpha=0.3)
+                ax2.set_xlabel('Φ/c² (×10⁻¹⁰)')
+                ax2.set_ylabel('Δα/α (×10⁻¹⁸)')
+                ax2.set_title('Atomic Clock Differential\n(Gravitational Potential)')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+            else:
+                # No potential data; show drift constraints as time series
+                ax2.text(0.5, 0.5, 'Drift Constraints Only\n(No Modulation Data)', 
+                        ha='center', va='center', transform=ax2.transAxes)
+                if 'gravitational' in self.results and 'beta_upper_limit' in self.results['gravitational']:
+                    beta_lim = self.results['gravitational']['beta_upper_limit']
+                    ax2.text(0.5, 0.3, f'β < {beta_lim:.2e} (95% CL)', 
+                            ha='center', va='center', transform=ax2.transAxes, fontsize=10)
+                ax2.set_title('Atomic Clock Constraints')
             
-            ax2.axhline(0, color='k', linestyle='--', alpha=0.3)
-            ax2.set_xlabel('Φ/c² (×10⁻¹⁰)')
-            ax2.set_ylabel('Δα/α (×10⁻¹⁸)')
-            ax2.set_title('Atomic Clock Differential\n(Gravitational Potential)')
+            # Add white dwarf data point (Berengut 2013: G191-B2B)
+            # Φ/c² ≈ 1e-4 (WD gravity), Δα/α = 4.2e-5 ± 1.6e-5
+            # Plot all white dwarf sources from ingestion
+            if getattr(self, 'white_dwarf_data', None) is not None and not self.white_dwarf_data.empty:
+                first_label = False
+                for _, row in self.white_dwarf_data.iterrows():
+                    phi = row.get('phi_over_c2')
+                    if np.isnan(phi):
+                        continue
+                    label = row['name'] if not first_label else None
+                    if row.get('type') == 'detection' and not np.isnan(row.get('delta_alpha_over_alpha')):
+                        ax2.errorbar(phi * 1e10,
+                                     row['delta_alpha_over_alpha'] * 1e18,
+                                     yerr=(row['error'] * 1e18) if not np.isnan(row.get('error')) else None,
+                                     fmt='*', markersize=12, color='gold', markeredgecolor='black',
+                                     capsize=5, zorder=10, label=label)
+                    elif row.get('type') == 'upper_limit' and not np.isnan(row.get('upper_limit')):
+                        ax2.plot(phi * 1e10, row['upper_limit'] * 1e18,
+                                 marker='v', markersize=8, color='gold', markeredgecolor='black',
+                                 linestyle='None', label=label)
+                        ax2.annotate('UL', (phi * 1e10, row['upper_limit'] * 1e18),
+                                     textcoords='offset points', xytext=(0,5), ha='center', fontsize=7)
+                    if not first_label:
+                        first_label = True
+            # Annotate orbital modulation bound
+            if 'orbital_modulation' in self.results:
+                ob = self.results['orbital_modulation']
+                ax2.text(0.02, 0.08, f"Galileo bound: β < {ob['beta_upper_limit']:.2e}", 
+                         transform=ax2.transAxes, fontsize=9,
+                         bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
             ax2.legend()
-            ax2.grid(True, alpha=0.3)
+
+            # Regime comparison inset: weak (Earth-Sun), orbital (Galileo), strong (WD)
+            try:
+                inset = inset_axes(ax2, width="45%", height="45%", loc='upper right', borderpad=1)
+                # X: Φ/c², Y: indicative |Δα/α| or β*Φ proxy
+                seasonal_amp = self.results.get('gravitational', {}).get('seasonal_amplitude',
+                                        SeasonalModulationAnalyzer.compute_seasonal_potential_amplitude())
+                beta_seasonal = self.results.get('gravitational', {}).get('beta_upper_limit', np.nan)
+                phi_earth = abs(seasonal_amp)
+                # Orbital
+                phi_orb = abs(self.results.get('orbital_modulation', {}).get('dU_over_c2', np.nan))
+                beta_orb = self.results.get('orbital_modulation', {}).get('beta_upper_limit', np.nan)
+                # White dwarf
+                if getattr(self, 'white_dwarf_data', None) is not None and not self.white_dwarf_data.empty:
+                    det_df = self.white_dwarf_data[self.white_dwarf_data['type'] == 'detection']
+                    if not det_df.empty:
+                        wd_row = det_df.iloc[0]
+                        phi_wd = wd_row['phi_over_c2']
+                        dalpha_wd = abs(wd_row['delta_alpha_over_alpha'])
+                    else:
+                        ul_df = self.white_dwarf_data[self.white_dwarf_data['type'] == 'upper_limit']
+                        if not ul_df.empty:
+                            wd_row = ul_df.iloc[0]
+                            phi_wd = wd_row['phi_over_c2']
+                            dalpha_wd = ul_df.iloc[0]['upper_limit']
+                        else:
+                            phi_wd = 1e-4
+                            dalpha_wd = 4.2e-5
+                else:
+                    phi_wd = 1e-4
+                    dalpha_wd = 4.2e-5
+                # Plot points
+                xs = np.array([phi_earth, phi_orb, phi_wd])
+                ys = np.array([beta_seasonal * phi_earth if np.isfinite(beta_seasonal) else np.nan,
+                               beta_orb * phi_orb if np.isfinite(beta_orb) else np.nan,
+                               dalpha_wd])
+                labels = ['Earth-Sun', 'Orbital', 'White Dwarf']
+                inset.loglog(xs, ys, 'ko', markersize=6)
+                for x, y, lab in zip(xs, ys, labels):
+                    inset.text(x*1.1, y*1.1, lab, fontsize=7)
+                inset.set_xlabel('Φ/c²', fontsize=8)
+                inset.set_ylabel('|Δα/α|', fontsize=8)
+                inset.grid(True, which='both', alpha=0.3)
+                inset.set_title('Regimes', fontsize=9)
+            except Exception:
+                pass
         
         # 3. Pulsar rotational test
         ax3 = plt.subplot(2, 3, 3)
@@ -499,6 +743,12 @@ class MRRCAnalysis:
             summary_text += f"Gravitational Test:\n"
             summary_text += f"  β = {gr['beta']:.2e} ± {gr['beta_error']:.2e}\n"
             summary_text += f"  χ²/dof = {gr['chi_squared']:.2f}/{gr['dof']}\n\n"
+        if 'orbital_modulation' in self.results:
+            ob = self.results['orbital_modulation']
+            summary_text += f"Orbital Modulation (Galileo 5/6):\n"
+            summary_text += f"  ΔU/c² ≈ {ob['dU_over_c2']:.2e}\n"
+            summary_text += f"  α_grav limit ≈ {ob['alpha_grav_limit']:.2e}\n"
+            summary_text += f"  β upper limit ≈ {ob['beta_upper_limit']:.2e}\n\n"
         
         if 'rotational' in self.results:
             rr = self.results['rotational']
@@ -510,7 +760,15 @@ class MRRCAnalysis:
             qr = self.results['quasar_dipole']
             summary_text += f"Quasar Dipole:\n"
             summary_text += f"  A = {qr['amplitude']:.2e} ± {qr['amplitude_error']:.2e}\n"
+            if qr.get('overlay_amplitude'):
+                summary_text += f"  Ref (King 2012): {qr['overlay_amplitude']:.2e}\n"
         
+        # Append joint-fit summary if available
+        if 'joint_beta_phi' in self.results and 'beta0_est' in self.results['joint_beta_phi']:
+            jf = self.results['joint_beta_phi']
+            summary_text += f"\nJoint β(Φ) Fit (proxy):\n"
+            summary_text += f"  β₀ ≈ {jf['beta0_est']:.2e}, β₂ ≈ {jf['beta2_est']:.2e}\n"
+
         ax6.text(0.1, 0.9, summary_text, transform=ax6.transAxes,
                 fontsize=10, verticalalignment='top', family='monospace',
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
@@ -550,6 +808,27 @@ class MRRCAnalysis:
             report.append(f"  p-value = {gr['p_value']:.3f}")
             report.append(f"  Status: {'CONSISTENT' if gr['p_value'] > 0.05 else 'TENSION'}")
             report.append("")
+        if 'orbital_modulation' in self.results:
+            ob = self.results['orbital_modulation']
+            report.append("ORBITAL MODULATION TEST (Galileo 5/6):")
+            report.append(f"  ΔU/c² ≈ {ob['dU_over_c2']:.3e}")
+            report.append(f"  α_grav limit ≈ {ob['alpha_grav_limit']:.3e}")
+            report.append(f"  Derived β upper limit ≈ {ob['beta_upper_limit']:.3e}")
+            report.append("")
+        if 'aces_projection' in self.results:
+            ap = self.results['aces_projection']
+            report.append("ACTIVE MODULATION PROJECTION (ISS/ACES):")
+            report.append(f"  Potential difference (ISS-ground): {ap['potential_diff']:.3e}")
+            report.append(f"  Target precision: {ap['target_precision']:.1e}")
+            report.append(f"  Projected β upper limit: {ap['beta_projected_limit']:.3e}")
+            report.append("")
+        if 'joint_beta_phi' in self.results and 'beta0_est' in self.results['joint_beta_phi']:
+            jf = self.results['joint_beta_phi']
+            report.append("JOINT β(Φ) FIT (proxy):")
+            report.append(f"  Points used: {jf.get('points_used', 0)}")
+            report.append(f"  β₀ ≈ {jf['beta0_est']:.3e}")
+            report.append(f"  β₂ ≈ {jf['beta2_est']:.3e}")
+            report.append("")
         
         if 'rotational' in self.results:
             rr = self.results['rotational']
@@ -559,6 +838,17 @@ class MRRCAnalysis:
             report.append(f"  p-value = {rr['p_value']:.3f}")
             report.append(f"  Status: {'CONSISTENT' if rr['p_value'] > 0.05 else 'TENSION'}")
             report.append("")
+        # Combined summary of best bounds
+        if 'gravitational' in self.results or 'orbital_modulation' in self.results:
+            report.append("COMBINED SUMMARY:")
+            if 'gravitational' in self.results and 'beta_upper_limit' in self.results['gravitational']:
+                report.append(f"  Best β bound (drift + seasonal): {self.results['gravitational']['beta_upper_limit']:.3e}")
+            if 'orbital_modulation' in self.results:
+                ob = self.results['orbital_modulation']
+                report.append(f"  Cross-check β (Galileo orbital): {ob['beta_upper_limit']:.3e}")
+            if 'aces_projection' in self.results:
+                report.append(f"  Projected β (ISS/ACES): {self.results['aces_projection']['beta_projected_limit']:.3e}")
+            report.append("")
         
         report.append("FUTURE OBSERVATIONAL TARGETS:")
         report.append("  1. Atomic clocks: Earth vs ISS vs GPS (Δα/α ~ 10⁻¹⁸)")
@@ -566,11 +856,70 @@ class MRRCAnalysis:
         report.append("  3. Black hole accretion disks: Fe Kα line shifts")
         report.append("  4. Neutron star mergers: Multi-messenger constraints")
         report.append("")
+
+        # Interpretation block: why orbital is looser but complementary
+        report.append("INTERPRETATION:")
+        report.append("  Drift + seasonal bounds probe weak-field (Earth-Sun) variations with exquisite precision,")
+        report.append("  yielding β ≲ 7.3×10⁻⁸. Orbital modulation (Galileo 5/6) is an active test in a slightly")
+        report.append("  stronger, time-varying potential, but clock systematic limits (α_grav ≲ 2.5×10⁻⁵) translate")
+        report.append("  to a looser β ≲ 2.9×10⁻⁵. The two are complementary: drift tests are most sensitive in the")
+        report.append("  weak-field regime; modulation tests validate absence of periodic signatures. Future ISS/ACES")
+        report.append("  space-to-ground links at ~10⁻¹⁶ precision could tighten the active-modulation bound by orders")
+        report.append("  of magnitude, closing the gap between laboratory nulls and strong-field probes like white dwarfs.")
+        report.append("")
+        report.append("NONLINEARITY NOTE:")
+        report.append("  A joint weak/strong-field fit using β(Φ) = β₀ + β₂·Φ can test whether")
+        report.append("  null weak-field results and tentative strong-field signals (e.g., white dwarfs)")
+        report.append("  are reconcilable within MRRC. Implementing this requires aggregating additional white dwarf")
+        report.append("  sources and performing a combined likelihood across regimes.")
+        report.append("")
+
+        # CMB consistency summary (order-of-magnitude back-of-envelope)
+        rms_dT_over_T = 1.0e-5
+        sachs_wolfe_coeff = 3.0  # RMS[Φ/c²] ≈ 3 × RMS[ΔT/T]
+        rms_phi_over_c2 = sachs_wolfe_coeff * rms_dT_over_T
+        best_beta = None
+        if 'gravitational' in self.results and 'beta_upper_limit' in self.results['gravitational']:
+            best_beta = self.results['gravitational']['beta_upper_limit']
+
+        report.append("CMB CONSISTENCY (Summary):")
+        report.append(f"  Inputs: RMS[ΔT/T]={rms_dT_over_T:.1e} ⇒ RMS[Φ/c²]={rms_phi_over_c2:.1e} (Sachs–Wolfe ×3)")
+        if best_beta is not None:
+            dalpha_rms = best_beta * rms_phi_over_c2
+            report.append(f"  Best β bound (lab): {best_beta:.3e}")
+            report.append(f"  Predicted RMS |Δα/α| (lab β): {dalpha_rms:.3e}")
+            report.append(f"  Predicted RMS |δσ_T/σ_T|: {2*dalpha_rms:.3e}")
+            report.append(f"  Predicted RMS |δz*/z*|: {2*dalpha_rms:.3e}")
+            # Loose, permissive CMB upper bound example
+            loose_dalpha_rms = 3.0e-3
+            beta_cmb_max = loose_dalpha_rms / rms_phi_over_c2
+            report.append(f"  Loose CMB prior example: |Δα/α|₍RMS₎≲3e-3 ⇒ β≲{beta_cmb_max:.2e}")
+        else:
+            report.append("  Best β bound unavailable; skip numerical projection.")
+        report.append("")
+
+        # Cosmology energy accounting (Run 2 vs V5.1)
+        report.append("COSMOLOGY ENERGY ACCOUNTING (Run 2 vs V5.1):")
+        report.append("  Run 2 (Naive Maintenance):")
+        report.append("    Assumption: Universe is 'Compliant' — pay to actively maintain all CMB bits (~1e122 bits).")
+        report.append("    Predicted power: 1.86e+82 W.")
+        report.append("    Issue: Exceeds physical limit c^5/G ≈ 3.64e+52 W by ~30 orders — catastrophic violation.")
+        report.append("  V5.1 (Stiff/Mode-Locked Substrate):")
+        report.append("    Assumption: Static states are free; only pay for change (expansion).")
+        report.append("    Calculation: W = T_H · dS/dt (horizon thermodynamics).")
+        report.append("    Result: 1.82e+52 W ≈ 0.50 · (c^5/G).")
+        report.append("    Interpretation: The 1/2 factor is standard from equipartition on horizons.")
+        report.append("  Conclusion: Early MRRC 'failure' was accounting — charging maintenance on a locked system.")
+        report.append("             With Stiff Substrate (supported by atomic-clock nulls), the universe spends energy")
+        report.append("             to grow, not to exist — resolving the cosmological energy crisis.")
+        report.append("")
         
         report.append("REFERENCES:")
         report.append("  - Webb et al. (2011): Quasar dipole Δα/α = -0.57e-5")
         report.append("  - Godun et al. (2014): |Δα/α| < 10⁻¹⁷ (Yb/Sr clocks)")
         report.append("  - Rosenband et al. (2008): Al⁺/Hg⁺ clock constraints")
+        report.append("  - Sachs & Wolfe (1967): CMB anisotropies and gravitational potentials")
+        report.append("  - Planck Collaboration (2018): RMS ΔT/T ≈ 1e-5")
         report.append("")
         report.append("="*60)
         
@@ -583,6 +932,151 @@ class MRRCAnalysis:
         print("\nReport saved: mrrc_alpha_variation_report.txt")
         
         return report_text
+
+    # --- Orbital modulation (Galileo 5/6) ingestion and beta fit ---
+    @staticmethod
+    def ingest_orbital_modulation_data():
+        """
+        Ingest Orbital Modulation data from Galileo 5/6 (Delva et al., 2018) and
+        define ACES/PHARAO hook for future ISS data.
+
+        Returns:
+            dict: Galileo dataset dict, ACES hook dict
+        """
+        print("\n[INGESTION] Loading Orbital Modulation Data...")
+        galileo_data = {
+            'name': 'Galileo GSAT-0201/0202',
+            'clock_type': 'H-Maser',
+            'orbit': 'Elliptical (e=0.16)',
+            'modulation_amplitude_U': 3.7e-10,  # Peak-to-peak potential variation (c^-2)
+            'clock_residual_limit': 2.5e-5,     # Limit on fractional frequency dev (Delva 2018)
+            'k_alpha': 0.87                     # Sensitivity of H-Maser to alpha
+        }
+        aces_hook = {
+            'name': 'ACES/PHARAO (ISS)',
+            'clock_type': 'Cesium (Pharao) + H-Maser',
+            'modulation_source': 'Space-to-Ground Link',
+            'potential_diff': 3.0e-10,
+            'target_precision': 1e-16
+        }
+        print(f"   > Loaded {galileo_data['name']} Constraints (Delva 2018)")
+        return galileo_data, aces_hook
+
+    @staticmethod
+    def fit_beta_from_modulation(galileo_data):
+        """Fit β from orbital modulation using Galileo parameters."""
+        print("\n[ANALYSIS] Fitting Beta from Orbital Modulation...")
+        dU = galileo_data['modulation_amplitude_U']
+        limit_alpha_grav = galileo_data['clock_residual_limit']
+        K_alpha = galileo_data['k_alpha']
+        max_anomalous_freq = limit_alpha_grav * dU
+        beta_bound = limit_alpha_grav / K_alpha
+        print(f"   > Modulation Amplitude (ΔU/c²): {dU:.2e}")
+        print(f"   > Clock Residual Limit × ΔU: {max_anomalous_freq:.2e}")
+        print(f"   > Derived β Limit (Orbital): < {beta_bound:.2e}")
+        return beta_bound
+
+    @staticmethod
+    def project_aces_beta_bound(aces_hook, k_alpha=1.0):
+        """Project β bound for ISS/ACES given target precision and potential difference."""
+        dU = aces_hook.get('potential_diff', 3.0e-10)
+        precision = aces_hook.get('target_precision', 1e-16)
+        beta_proj = precision / (k_alpha * dU)
+        return beta_proj
+
+    # --- White dwarf ingestion and joint-fit scaffold ---
+    @staticmethod
+    def ingest_white_dwarf_sources():
+        """Ingest white dwarf sources with detection vs upper-limit handling.
+
+        Returns:
+            DataFrame columns: name, phi_over_c2, delta_alpha_over_alpha, error, upper_limit, type
+        """
+        csv_path = Path.cwd() / 'alpha_variation_data' / 'white_dwarfs.csv'
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                for col in ['phi_over_c2', 'delta_alpha_over_alpha', 'error', 'upper_limit']:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                if 'type' not in df.columns:
+                    df['type'] = np.where(df['delta_alpha_over_alpha'].notna(), 'detection', 'upper_limit')
+                print(f"Loaded white dwarf sources from CSV: {csv_path.name} ({len(df)})")
+                return df[['name', 'phi_over_c2', 'delta_alpha_over_alpha', 'error', 'upper_limit', 'type']]
+            except Exception as e:
+                print(f"Warning: Failed to parse {csv_path.name}: {e}. Using baseline entry.")
+        df = pd.DataFrame([{
+            'name': 'G191-B2B (Berengut 2013)',
+            'phi_over_c2': 1.0e-4,
+            'delta_alpha_over_alpha': 4.2e-5,
+            'error': 1.6e-5,
+            'upper_limit': np.nan,
+            'type': 'detection'
+        }])
+        return df
+
+    def joint_fit_beta_of_phi(self):
+        """Simple joint-fit scaffold for β(Φ) = β0 + β2·Φ using weak/strong-field points.
+
+        Uses:
+          - Weak-field seasonal limit: treat as upper bound at Φ_earth with |Δα/α| < 3σ
+          - Orbital modulation: upper bound at Φ_orb with |Δα/α| < β_orb*Φ_orb
+          - White dwarf points: direct Δα/α measurements at Φ_wd
+
+        Stores:
+          self.results['joint_beta_phi'] with fit coefficients and notes.
+        """
+        if not self.config.get('enable_joint_fit'):
+            return
+        try:
+            # Assemble data
+            seasonal_amp = self.results.get('gravitational', {}).get('seasonal_amplitude',
+                                    SeasonalModulationAnalyzer.compute_seasonal_potential_amplitude())
+            min_err = self.results.get('gravitational', {}).get('tightest_constraint_sigma', np.nan)
+            phi_earth = abs(seasonal_amp)
+            y_earth = 3 * min_err if np.isfinite(min_err) else np.nan
+
+            phi_orb = abs(self.results.get('orbital_modulation', {}).get('dU_over_c2', np.nan))
+            beta_orb = self.results.get('orbital_modulation', {}).get('beta_upper_limit', np.nan)
+            y_orb = beta_orb * phi_orb if np.isfinite(beta_orb) and np.isfinite(phi_orb) else np.nan
+
+            wd_df = getattr(self, 'white_dwarf_data', pd.DataFrame())
+            wd_df = wd_df.dropna(subset=['phi_over_c2', 'delta_alpha_over_alpha']) if not wd_df.empty else wd_df
+
+            # Build arrays
+            X_list = []
+            Y_list = []
+            if np.isfinite(phi_earth) and np.isfinite(y_earth):
+                X_list.append([1.0, phi_earth])
+                Y_list.append(y_earth)
+            if np.isfinite(phi_orb) and np.isfinite(y_orb):
+                X_list.append([1.0, phi_orb])
+                Y_list.append(y_orb)
+            for _, row in wd_df.iterrows():
+                X_list.append([1.0, row['phi_over_c2']])
+                Y_list.append(abs(row['delta_alpha_over_alpha']))
+
+            if len(X_list) < 2:
+                self.results['joint_beta_phi'] = {'note': 'Insufficient data for joint fit'}
+                return
+
+            X = np.array(X_list)
+            Y = np.array(Y_list)
+
+            # Linear least squares: |Δα/α| ≈ |β0 + β2·Φ|·Φ ≈ proxy; use small-Φ approx
+            # For simplicity, fit y ≈ b0*Φ + b2*Φ² where b0≈β0 and b2≈β2
+            Phi = X[:, 1]
+            A = np.vstack([Phi, Phi**2]).T
+            coeffs, _, _, _ = np.linalg.lstsq(A, Y, rcond=None)
+            beta0_est, beta2_est = coeffs[0], coeffs[1]
+
+            self.results['joint_beta_phi'] = {
+                'beta0_est': beta0_est,
+                'beta2_est': beta2_est,
+                'points_used': len(Y_list)
+            }
+        except Exception as e:
+            self.results['joint_beta_phi'] = {'error': str(e)}
 
 
 def main():

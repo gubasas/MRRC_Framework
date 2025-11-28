@@ -1,0 +1,4 @@
+name,phi_over_c2,delta_alpha_over_alpha,error,upper_limit,type,reference
+G191-B2B (Berengut 2013),1.0e-4,4.2e-5,1.6e-5,,detection,Berengut2013
+WD Placeholder 1 (high g),2.0e-4,,,5.0e-5,upper_limit,TODO
+WD Placeholder 2 (very high g),3.0e-4,,,7.0e-5,upper_limit,TODO
