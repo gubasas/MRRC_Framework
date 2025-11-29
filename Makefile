@@ -1,6 +1,6 @@
 PY := /usr/local/bin/python3
 
-.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive markov fe clean
+.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive markov life fe clean
 
 data:
 	$(PY) fetch_alpha_data.py
@@ -40,6 +40,9 @@ ca-drive:
 
 markov:
 	$(PY) simulations/mrrc_markov.py
+
+life:
+	$(PY) simulations/mrrc_life.py
 
 fe:
 	$(PY) analysis/fe_ka_latency.py
