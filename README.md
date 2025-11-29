@@ -9,6 +9,7 @@ Contents:
 - `tests/quasar_dipole.py`: quasar dipole fit and plot
 - `tests/atomic_clocks.py`: atomic clock Φ/c² linear fit and plot
 - `simulations/ca_mrrc.py`: Toy CA illustrating MRRC cost concepts (didactic, not physical)
+- `simulations/mrrc_markov.py`: MRRC Markov toy with mode-locked accounting, β·Φ coupling, drive/expansion (didactic)
 - `analysis/fe_ka_latency.py`: Fe Kα latency demo (busy-substrate index)
 - `mrrc_alpha_variation_report.txt`: generated analysis report
 - `mrrc_alpha_variation_analysis.png`: generated summary figure
@@ -74,6 +75,7 @@ make scan       # PII/secrets scan (best-effort)
 make ca         # CA toy (mode-locked + drive + expansion)
 make ca-legacy  # CA with legacy pay-to-maintain behavior
 make ca-drive   # CA with active drive only (no expansion)
+make markov     # Markov toy (entropy, dS/dt, costs)
 ```
 
 Note on simulations: The CA is a visualization aid. It separates “maintenance” vs “chargeable change” costs and lets you toggle weak-field coupling, drive, and expansion. It is not a physical simulation of MRRC dynamics; parameters (e.g., weak-field flips) are visually exaggerated to make effects apparent.

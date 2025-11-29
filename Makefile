@@ -1,6 +1,6 @@
 PY := /usr/local/bin/python3
 
-.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive fe clean
+.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive markov fe clean
 
 data:
 	$(PY) fetch_alpha_data.py
@@ -37,6 +37,9 @@ ca-legacy:
 
 ca-drive:
 	$(PY) simulations/ca_mrrc.py --mode-locked --expand-every 0 --drive-amp 1e-2 --drive-period 60 --drive-duty 0.5
+
+markov:
+	$(PY) simulations/mrrc_markov.py
 
 fe:
 	$(PY) analysis/fe_ka_latency.py
