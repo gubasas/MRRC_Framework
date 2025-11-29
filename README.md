@@ -15,18 +15,17 @@ Contents:
 
 Quick start:
 ```bash
-cd "/Users/alexk/Documents/ GlassMind"
-/usr/local/bin/python3 fetch_alpha_data.py
-/usr/local/bin/python3 mrrc_alpha_variation_test.py
+python3 fetch_alpha_data.py
+python3 mrrc_alpha_variation_test.py
 ```
 
 Run individual tests:
 ```bash
-/usr/local/bin/python3 tests/quasar_dipole.py
-/usr/local/bin/python3 tests/atomic_clocks.py
-/usr/local/bin/python3 tests/cbr_cmb.py
-/usr/local/bin/python3 simulations/ca_mrrc.py
-/usr/local/bin/python3 analysis/fe_ka_latency.py
+python3 tests/quasar_dipole.py
+python3 tests/atomic_clocks.py
+python3 tests/cbr_cmb.py
+python3 simulations/ca_mrrc.py
+python3 analysis/fe_ka_latency.py
 ```
 
 Hypotheses:
@@ -55,14 +54,23 @@ Review source: Ludlow et al. (arXiv:1407.0164) used for consolidated sensitivity
 
 Docs walkthroughs:
 ```bash
-/usr/local/bin/python3 docs/alpha_variation_walkthrough.py
+python3 docs/alpha_variation_walkthrough.py
 ```
 Open `docs/alpha_variation_walkthrough.ipynb` in VS Code to run cells.
+
+Privacy & security hygiene:
+- Use relative paths in docs/code (no home directories).
+- Do not commit virtualenvs; use `.venv/` in `.gitignore` (already set).
+- Scan for PII/secrets before publishing:
+	- `make scan` (lightweight patterns)
+	- Optional: run `gitleaks` or `detect-secrets` for deeper scans
+- If sensitive info ever landed in Git history, rewrite using `git filter-repo` or BFG and force-push.
 
 Make targets (optional):
 ```bash
 make analysis   # main α-variation pipeline
 make cmb        # CMB consistency test (report + plot)
+make scan       # PII/secrets scan (best-effort)
 ```
 
 CI artifacts:
