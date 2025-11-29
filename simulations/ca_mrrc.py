@@ -7,6 +7,7 @@ Cellular Automaton MRRC Simulation (V5.1-aligned)
 import numpy as np
 import matplotlib.pyplot as plt
 import zlib
+import argparse
 from dataclasses import dataclass
 
 
@@ -20,6 +21,8 @@ class MRRCConfig:
     phi_over_c2: float = 3.3e-10  # seasonal Earth–Sun amplitude (abs)
     # Stochastic noise baseline (dimensionless flip probability)
     noise_p: float = 0.0
+    # Visual exaggeration for weak-field flips (purely illustrative)
+    weak_field_visual_scale: float = 1e4
     # Optional active drive (ISS/ACES-like periodic perturbation)
     drive_amp: float = 0.0         # additional flip prob when drive is on
     drive_period: int | None = None  # steps between drive bursts
@@ -56,8 +59,7 @@ def simulate(cfg: MRRCConfig):
 
     # Effective weak-field flip probability from β·|Φ| (scaled up for visibility)
     # Note: true lab-scale rates ~ 1e-17 are visually imperceptible; scale for demo
-    weak_field_scale = 1e4  # purely for visualization
-    p_beta = np.clip(cfg.beta * abs(cfg.phi_over_c2) * weak_field_scale, 0.0, 0.05)
+    p_beta = np.clip(cfg.beta * abs(cfg.phi_over_c2) * cfg.weak_field_visual_scale, 0.0, 0.05)
 
     legacy_maintenance = []        # PC5 (bit erasures in recorder)
     chargeable_change = []         # V5.1: only charge expansion/active drive
@@ -138,20 +140,39 @@ def simulate(cfg: MRRCConfig):
     }
 
 def main():
+    parser = argparse.ArgumentParser(description='Toy CA illustrating MRRC cost concepts (didactic, not physical).')
+    parser.add_argument('--n', type=int, default=256)
+    parser.add_argument('--steps', type=int, default=600)
+    parser.add_argument('--recorder-size', type=int, default=64)
+    parser.add_argument('--beta', type=float, default=7.27e-8)
+    parser.add_argument('--phi', type=float, default=3.3e-10, help='|Φ|/c² magnitude (abs)')
+    parser.add_argument('--noise-p', type=float, default=0.0)
+    parser.add_argument('--weak-scale', type=float, default=1e4, help='visual exaggeration factor for p_beta')
+    parser.add_argument('--drive-amp', type=float, default=5e-3)
+    parser.add_argument('--drive-period', type=int, default=60)
+    parser.add_argument('--drive-duty', type=float, default=0.33)
+    parser.add_argument('--mode-locked', action='store_true', default=True)
+    parser.add_argument('--no-mode-locked', dest='mode_locked', action='store_false')
+    parser.add_argument('--expand-every', type=int, default=100)
+    parser.add_argument('--expand-size', type=int, default=8)
+    parser.add_argument('--seed', type=int, default=42)
+    args = parser.parse_args()
+
     cfg = MRRCConfig(
-        n=256,
-        steps=600,
-        recorder_size=64,
-        beta=7.27e-8,
-        phi_over_c2=3.3e-10,
-        noise_p=0.0,
-        drive_amp=5e-3,       # visual active drive
-        drive_period=60,
-        drive_duty=0.33,
-        mode_locked=True,
-        expansion_every=100,
-        expansion_size=8,
-        seed=42,
+        n=args.n,
+        steps=args.steps,
+        recorder_size=args.recorder_size,
+        beta=args.beta,
+        phi_over_c2=args.phi,
+        noise_p=args.noise_p,
+        weak_field_visual_scale=args.weak_scale,
+        drive_amp=args.drive_amp,
+        drive_period=args.drive_period,
+        drive_duty=args.drive_duty,
+        mode_locked=args.mode_locked,
+        expansion_every=args.expand_every if args.expand_every > 0 else None,
+        expansion_size=args.expand_size,
+        seed=args.seed,
     )
     out = simulate(cfg)
 
@@ -162,7 +183,7 @@ def main():
     ax1.plot(t, out['chargeable_change'], label='Chargeable change (V5.1)')
     ax1.set_ylabel('Cost (bits)')
     ax1.legend()
-    ax1.set_title('MRRC CA Recorder: Maintenance vs Change Costs')
+    ax1.set_title('Toy CA (illustrative): Maintenance vs Change Costs')
 
     ax2 = plt.subplot(2,1,2)
     ax2.plot(t, out['domain_walls'], label='Domain walls (PC3)')
@@ -179,6 +200,7 @@ def main():
     print('Saved: ca_mrrc_sim.png')
     print(f"Latency samples (PC4): n={len(lat)}, median={np.median(lat) if len(lat)>0 else 'NA'}")
     print(f"Demo weak-field flip prob from β·|Φ| (scaled): p_beta={p_beta:.3e}")
+    print('Note: This CA is a didactic illustration; parameters are visually exaggerated and not a physical MRRC model.')
 
 if __name__ == '__main__':
     main()

@@ -8,7 +8,7 @@ Contents:
 - `alpha_variation_data/`: CSVs + metadata used by tests
 - `tests/quasar_dipole.py`: quasar dipole fit and plot
 - `tests/atomic_clocks.py`: atomic clock Φ/c² linear fit and plot
-- `simulations/ca_mrrc.py`: MRRC CA recorder simulation (PC1–PC5)
+- `simulations/ca_mrrc.py`: Toy CA illustrating MRRC cost concepts (didactic, not physical)
 - `analysis/fe_ka_latency.py`: Fe Kα latency demo (busy-substrate index)
 - `mrrc_alpha_variation_report.txt`: generated analysis report
 - `mrrc_alpha_variation_analysis.png`: generated summary figure
@@ -71,7 +71,12 @@ Make targets (optional):
 make analysis   # main α-variation pipeline
 make cmb        # CMB consistency test (report + plot)
 make scan       # PII/secrets scan (best-effort)
+make ca         # CA toy (mode-locked + drive + expansion)
+make ca-legacy  # CA with legacy pay-to-maintain behavior
+make ca-drive   # CA with active drive only (no expansion)
 ```
+
+Note on simulations: The CA is a visualization aid. It separates “maintenance” vs “chargeable change” costs and lets you toggle weak-field coupling, drive, and expansion. It is not a physical simulation of MRRC dynamics; parameters (e.g., weak-field flips) are visually exaggerated to make effects apparent.
 
 CI artifacts:
 - On push to `main`, GitHub Actions uploads `mrrc_alpha_variation_report.txt` and `mrrc_alpha_variation_analysis.png` to the workflow run artifacts.
