@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 class MRRCGrid:
@@ -31,6 +31,12 @@ class MRRCGrid:
         self.drive_period = drive_period
         self.drive_duty = drive_duty
         self.t = 0
+        # Track simple metrics
+        self.metrics = {
+            'alive': [],
+            'locked': [],
+            'leaders': [],
+        }
 
     def neighbors_alive(self, y: int, x: int) -> int:
         s = 0
@@ -84,8 +90,8 @@ class MRRCGrid:
                     if s >= self.growth_threshold:
                         nxt[y, x] = 3
 
-        # Growth: leaders promote adjacent empties to developing during drive or periodic windows
-        if drive or (self.t % (self.drive_period or 50) == 0):
+        # Growth: leaders promote adjacent empties to developing during drive or periodic pulses
+        if drive or (self.drive_period and self.t % max(1, self.drive_period) == 0):
             for y in range(self.h):
                 for x in range(self.w):
                     if nxt[y, x] == 3:
@@ -99,45 +105,72 @@ class MRRCGrid:
         # Perturbation during drive: a small fraction of locked cells can unlock to developing
         if drive:
             mask = (nxt == 2)
-            # unlock ~1% of locked cells to allow plasticity
             idx = np.argwhere(mask)
             if idx.size > 0:
-                sel = idx[np.random.choice(idx.shape[0], size= max(1, idx.shape[0]//100), replace=False)]
+                k = max(1, idx.shape[0]//100)
+                sel_idx = np.random.choice(idx.shape[0], size=k, replace=False)
+                sel = idx[sel_idx]
                 for (yy, xx) in sel:
                     nxt[yy, xx] = 1
 
         self.state = nxt
+        # Update metrics
+        self.metrics['alive'].append(int(np.sum(self.state == 1)))
+        self.metrics['locked'].append(int(np.sum(self.state == 2)))
+        self.metrics['leaders'].append(int(np.sum(self.state == 3)))
 
 
 def run_animation(width=64, height=64, frames=400, interval=60,
                   lock_threshold=4, growth_threshold=5,
                   drive_period=50, drive_duty=0.4, seed=123,
-                  outfile='mrrc_life.mp4'):
+                  outfile='mrrc_life.gif', live=False):
         grid = MRRCGrid(width, height, seed=seed,
                          lock_threshold=lock_threshold,
                          growth_threshold=growth_threshold,
                          drive_period=drive_period,
                          drive_duty=drive_duty)
 
-        cmap = plt.get_cmap('viridis')
+        # Use a distinct ListedColormap for states
+        from matplotlib.colors import ListedColormap
+        cmap = ListedColormap(['#101010', '#3BA3EC', '#6CCB5F', '#E27D60'])
         fig, ax = plt.subplots(figsize=(6,6))
         im = ax.imshow(grid.state, vmin=0, vmax=3, cmap=cmap, interpolation='nearest')
-        ax.set_title('MRRC Life: grow, lock, develop (illustrative)')
+        title = ax.set_title('MRRC Life: grow, lock, develop (illustrative)')
         ax.set_axis_off()
+        # Legend-like annotation
+        legend_txt = ax.text(0.02, 0.98,
+                             '0 empty\n1 developing\n2 locked\n3 leader',
+                             transform=ax.transAxes,
+                             va='top', ha='left', fontsize=9,
+                             bbox=dict(boxstyle='round', facecolor='black', alpha=0.3, edgecolor='white'))
+        drive_txt = ax.text(0.98, 0.02, '', transform=ax.transAxes, va='bottom', ha='right', fontsize=10,
+                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
 
         def update(_):
             grid.step()
             im.set_data(grid.state)
-            return (im,)
+            # Update drive indicator
+            drive_txt.set_text('DRIVE' if grid.drive_on() else '')
+            # Update title with simple metrics
+            if grid.t % 5 == 0:
+                a = grid.metrics['alive'][-1] if grid.metrics['alive'] else 0
+                l = grid.metrics['locked'][-1] if grid.metrics['locked'] else 0
+                h = grid.metrics['leaders'][-1] if grid.metrics['leaders'] else 0
+                title.set_text(f'MRRC Life (t={grid.t}) — dev={a} lock={l} lead={h}')
+            return (im, title, legend_txt, drive_txt)
 
         anim = FuncAnimation(fig, update, frames=frames, interval=interval, blit=True)
-        try:
-            anim.save(outfile, writer='ffmpeg', dpi=160)
-            print(f'Saved animation: {outfile}')
-        except Exception as e:
-            print(f'ffmpeg unavailable ({e}); saving first frame to mrrc_life.png')
-            fig.savefig('mrrc_life.png', dpi=200)
-        plt.close(fig)
+        if live:
+            plt.show()
+        else:
+            try:
+                writer = PillowWriter(fps=max(1, int(1000/interval)))
+                anim.save(outfile, writer=writer)
+                print(f'Saved animation: {outfile}')
+            except Exception as e:
+                print(f'GIF save failed ({e}); saving first frame to mrrc_life.png')
+                fig.savefig('mrrc_life.png', dpi=200)
+            plt.close(fig)
 
 
 def main():
@@ -151,13 +184,14 @@ def main():
     ap.add_argument('--drive-period', type=int, default=50)
     ap.add_argument('--drive-duty', type=float, default=0.4)
     ap.add_argument('--seed', type=int, default=123)
-    ap.add_argument('--outfile', type=str, default='mrrc_life.mp4')
+    ap.add_argument('--outfile', type=str, default='mrrc_life.gif')
+    ap.add_argument('--live', action='store_true', help='show live animation window')
     args = ap.parse_args()
 
     run_animation(width=args.width, height=args.height, frames=args.frames, interval=args.interval,
                   lock_threshold=args.lock_th, growth_threshold=args.grow_th,
                   drive_period=args.drive_period, drive_duty=args.drive_duty, seed=args.seed,
-                  outfile=args.outfile)
+                  outfile=args.outfile, live=args.live)
 
 
 if __name__ == '__main__':
