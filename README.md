@@ -1,6 +1,17 @@
 # MRRC_Framework
 
-MRRC V5.0 hypothesis tests and simulations.
+**MRRC V5.1** — Minimal Recorded Relational Change framework: α-variation analysis, simulations, and empirical validation.
+
+## Version History & Continuity
+
+This repository builds on the theoretical foundation established in [MRRC-Framework-V3](https://github.com/gubasas/MRRC-Framework-V3):
+
+- **V3.0** (2023–2024): Constraint-logic model, 4-tuple formalism, primitive constraints (PC1–PC5), geometric derivation of α.
+- **V4.0** (2024): Cosmology integration, QEC validation (Google Willow), stiff substrate hypothesis.
+- **V5.0** (2024): Mode-locked accounting, weak-field coupling (β·Φ/c²), hierarchical attractors (Kosmos RUN4).
+- **V5.1** (2025): Current work — empirical tests (clocks, quasars, CMB), didactic simulations, unified validation pipeline.
+
+See `supplementary/MRRC-Framework-V3/` for foundational papers (`V3.pdf`, `V4.pdf`) and Kosmos simulation reports. Top-level papers (`V3.pdf`, `V3.tex`, `V4.pdf`) are promoted for convenience.
 
 Contents:
 - `mrrc_alpha_variation_test.py`: end-to-end α-variation analysis and plotting
