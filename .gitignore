@@ -1,0 +1,44 @@
+.DS_Store
+*.pyc
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+*.log
+*.tmp
+*.swp
+*.swo
+*.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+Kapitanov_MRRC/venv/
+
+# Local VS Code workspace files
+*.code-workspace
+.vscode/
+
+# Generated artifacts
+*.png
+*.pdf
+*.svg
+*.json
+alpha_variation_data/__pycache__/
+__pycache__/
+executed_uids.log
+king_2012_quasars.tsv
+mrrc_alpha_variation_report.txt
+mrrc_alpha_variation_analysis.png
+mrrc_cmb_report.txt
+mrrc_cmb_test.png
+Kapitanov_MRRC/results/
+
+# OS / tooling
+.idea/
+Thumbs.db
+ehthumbs.db
+*.orig
+*.rej

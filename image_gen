@@ -1,0 +1,71 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_final_stiff_substrate():
+    # 1. Setup the Domain (Gravitational Potential Phi/c^2)
+    phi = np.logspace(-11, -3, 100) 
+    
+    # 2. Define the Limits (Beta Couplings)
+    # Drift Limit (Nemitz 2016): Beta < 7.3e-8
+    beta_drift = 7.3e-8 
+    da_drift_limit = beta_drift * phi
+    
+    # Orbital Limit (Galileo 2018): Beta < 2.9e-5
+    beta_orbital = 2.9e-5
+    da_orbital_limit = beta_orbital * phi
+    
+    # 3. Define the Models
+    # Linear Gravity (Falsified by Drift) - e.g. Beta ~ 1e-6 required for 2.2ppm
+    beta_naive = 2e-6
+    da_naive = beta_naive * phi
+    
+    # Stiff Substrate Model (MRRC V5.1) - The "Snap"
+    # Stays at 0 until Phi_crit, then rises to meet White Dwarf
+    phi_crit = 5e-6
+    da_stiff = np.zeros_like(phi)
+    mask = phi > phi_crit
+    # Simple plastic deformation curve k*(phi - phi_crit)^gamma
+    da_stiff[mask] = 0.45 * (phi[mask] - phi_crit)**1.0
+    
+    # 4. Plotting
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    # --- Regions & Lines ---
+    # Shaded region excluded by Earth Drift
+    ax.fill_between(phi, 1e-20, da_drift_limit, color='gray', alpha=0.1, label='Excluded by Earth Drift')
+    
+    # Lines
+    ax.loglog(phi, da_drift_limit, 'b--', linewidth=1, label=r'Drift Bound ($\beta < 7 \times 10^{-8}$)')
+    ax.loglog(phi, da_orbital_limit, 'g--', linewidth=1, label=r'Galileo Bound ($\beta < 3 \times 10^{-5}$)')
+    ax.loglog(phi, da_stiff, 'r-', linewidth=3, label='MRRC V5.1 Stiff Substrate')
+    
+    # --- Data Points ---
+    # 1. Earth Drift Null (Nemitz)
+    ax.errorbar(1.65e-10, 1e-18, yerr=0.5e-18, uplims=True, fmt='o', color='blue', markersize=8)
+    ax.text(1.8e-10, 2e-19, 'Earth Drift\n(Null)', color='blue', fontsize=9)
+
+    # 2. Galileo Modulation (Delva)
+    # Modulation amplitude ~ 3.7e-10. Constraint level ~ 1e-14
+    ax.errorbar(3.7e-10, 1e-14, yerr=0.5e-14, uplims=True, fmt='^', color='green', markersize=8)
+    ax.text(4.5e-10, 2e-14, 'Galileo Orbit\n(Null)', color='green', fontsize=9)
+    
+    # 3. White Dwarf Signal (Berengut)
+    ax.errorbar(1e-4, 4.2e-5, yerr=1.6e-5, fmt='D', color='orange', markersize=10, markeredgecolor='black', label='White Dwarf Signal')
+    ax.text(1.2e-4, 4.2e-5, 'White Dwarf\n(G191-B2B)', color='orange', fontweight='bold')
+    
+    # --- Formatting ---
+    ax.set_xlabel(r'Gravitational Potential ($\Phi/c^2$)', fontsize=12)
+    ax.set_ylabel(r'Variation $\Delta\alpha/\alpha$', fontsize=12)
+    ax.set_title('MRRC V5.1 Empirical Limits: The "Stiff Substrate" Phase Transition', fontsize=14)
+    ax.legend(loc='upper left', fontsize=10)
+    ax.grid(True, which="both", ls="-", alpha=0.2)
+    
+    # Annotate the "Snap"
+    ax.annotate('Substrate "Snap"\n(Phase Transition)', xy=(1e-5, 1e-6), xytext=(2e-7, 1e-5),
+                arrowprops=dict(facecolor='black', shrink=0.05))
+
+    plt.tight_layout()
+    plt.savefig('mrrc_v5_1_final_plot.png', dpi=300)
+    print("Plot saved as mrrc_v5_1_final_plot.png")
+
+plot_final_stiff_substrate()

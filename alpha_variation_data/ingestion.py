@@ -154,26 +154,60 @@ def parse_webb_quasar_table(path: str) -> pd.DataFrame:
     )
 
 def parse_clock_constraints_table(path: str) -> pd.DataFrame:
-    """
-    Parse optical clock constraints table into expected schema.
-    Expects columns that can map to delta_phi_over_c2 (or gravitational_potential_ratio),
-    delta_alpha_over_alpha, and error.
+    """Parse optical clock constraint table with extended schema.
+
+    Flexible accepted columns (case-insensitive):
+    - Potential:  delta_phi_over_c2|gravitational_potential_ratio|phi_over_c2
+    - Alpha frac: delta_alpha_over_alpha|delta_alpha|daa_fraction
+      OR raw ratio residual: delta_nu_over_nu|ratio_residual plus k_alpha -> converted.
+    - Error: error|sigma|uncertainty (applies to alpha frac; if residual given, divided by k_alpha)
+    - Sensitivity: k_alpha|kalpha|sensitivity_alpha
+    - Clock pair (optional): clock_pair|pair|system
+    - Epoch/interval (optional): epoch|interval|date|year
+
+    Returned columns (if available):
+    delta_phi_over_c2, delta_alpha_over_alpha, error, k_alpha, clock_pair, epoch_or_interval, source
     """
     df = pd.read_csv(path)
     cols = {c.lower().strip(): c for c in df.columns}
-    def get_col(*names):
+
+    def find(*names):
         for n in names:
-            if n in cols:
-                return df[cols[n]]
-        raise KeyError(f"Missing required column among: {names}")
-    # Accept either potential ratio or explicit delta_phi_over_c2
-    phi = get_col("delta_phi_over_c2", "gravitational_potential_ratio", "phi_over_c2")
-    daa = get_col("delta_alpha_over_alpha", "delta_alpha", "daa_fraction")
-    err = get_col("error", "sigma", "uncertainty")
+            key = n.lower().strip()
+            if key in cols:
+                return df[cols[key]]
+        return None
+
+    phi = find("delta_phi_over_c2", "gravitational_potential_ratio", "phi_over_c2")
+    k_alpha = find("k_alpha", "kalpha", "sensitivity_alpha")
+    alpha_frac = find("delta_alpha_over_alpha", "delta_alpha", "daa_fraction")
+    residual = find("delta_nu_over_nu", "ratio_residual", "freq_ratio_residual")
+    err = find("error", "sigma", "uncertainty")
+    clock_pair = find("clock_pair", "pair", "system")
+    epoch = find("epoch", "interval", "date", "year")
+
+    # Compute alpha fraction from residual if necessary and possible.
+    if alpha_frac is None and residual is not None and k_alpha is not None:
+        # delta_alpha/alpha = (delta_nu/nu)/K_alpha
+        alpha_frac = pd.to_numeric(residual, errors="coerce") / pd.to_numeric(k_alpha, errors="coerce")
+        # Propagate error if residual error implied in err and single k_alpha per row.
+        if err is not None:
+            err = pd.to_numeric(err, errors="coerce") / pd.to_numeric(k_alpha, errors="coerce")
+    else:
+        alpha_frac = pd.to_numeric(alpha_frac, errors="coerce") if alpha_frac is not None else None
+        if err is not None:
+            err = pd.to_numeric(err, errors="coerce")
+
     out = pd.DataFrame({
-        "delta_phi_over_c2": pd.to_numeric(phi, errors="coerce"),
-        "delta_alpha_over_alpha": pd.to_numeric(daa, errors="coerce"),
-        "error": pd.to_numeric(err, errors="coerce"),
+        "delta_phi_over_c2": pd.to_numeric(phi, errors="coerce") if phi is not None else None,
+        "delta_alpha_over_alpha": alpha_frac,
+        "error": err,
+        "k_alpha": pd.to_numeric(k_alpha, errors="coerce") if k_alpha is not None else None,
+        "clock_pair": clock_pair.astype(str) if clock_pair is not None else None,
+        "epoch_or_interval": epoch.astype(str) if epoch is not None else None,
         "source": "clock_constraints",
-    }).dropna()
+    })
+
+    # Drop rows missing essential alpha value or error
+    out = out.dropna(subset=["delta_alpha_over_alpha", "error"], how="any")
     return out
