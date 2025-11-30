@@ -18,8 +18,8 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 
 class MRRCGrid:
     def __init__(self, w: int, h: int, seed: int = 123,
-                 lock_threshold: int = 4,
-                 growth_threshold: int = 5,
+                 lock_threshold: int = 3,
+                 growth_threshold: int = 4,
                  drive_period: int | None = 50,
                  drive_duty: float = 0.4):
         rng = np.random.default_rng(seed)
@@ -121,7 +121,7 @@ class MRRCGrid:
 
 
 def run_animation(width=64, height=64, frames=400, interval=60,
-                  lock_threshold=4, growth_threshold=5,
+                  lock_threshold=3, growth_threshold=4,
                   drive_period=50, drive_duty=0.4, seed=123,
                   outfile='mrrc_life.gif', live=False):
         grid = MRRCGrid(width, height, seed=seed,
@@ -132,7 +132,8 @@ def run_animation(width=64, height=64, frames=400, interval=60,
 
         # Use a distinct ListedColormap for states
         from matplotlib.colors import ListedColormap
-        cmap = ListedColormap(['#101010', '#3BA3EC', '#6CCB5F', '#E27D60'])
+        # 0 empty (dark), 1 developing (green), 2 locked (blue), 3 leader (orange)
+        cmap = ListedColormap(['#101010', '#6CCB5F', '#3BA3EC', '#E27D60'])
         fig, ax = plt.subplots(figsize=(6,6))
         im = ax.imshow(grid.state, vmin=0, vmax=3, cmap=cmap, interpolation='nearest')
         title = ax.set_title('MRRC Life: grow, lock, develop (illustrative)')
@@ -179,8 +180,8 @@ def main():
     ap.add_argument('--height', type=int, default=64)
     ap.add_argument('--frames', type=int, default=400)
     ap.add_argument('--interval', type=int, default=60)
-    ap.add_argument('--lock-th', type=int, default=4)
-    ap.add_argument('--grow-th', type=int, default=5)
+    ap.add_argument('--lock-th', type=int, default=3)
+    ap.add_argument('--grow-th', type=int, default=4)
     ap.add_argument('--drive-period', type=int, default=50)
     ap.add_argument('--drive-duty', type=float, default=0.4)
     ap.add_argument('--seed', type=int, default=123)

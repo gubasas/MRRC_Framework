@@ -11,6 +11,7 @@ Contents:
 - `simulations/ca_mrrc.py`: Toy CA illustrating MRRC cost concepts (didactic, not physical)
 - `simulations/mrrc_markov.py`: MRRC Markov toy with mode-locked accounting, β·Φ coupling, drive/expansion (didactic)
 - `simulations/mrrc_life.py`: MRRC Life — GoL-style, hierarchical grow/lock/develop animation (didactic)
+ - `simulations/mrrc_genesis.py`: MRRC-Genesis — energy/yield/dissipation emergence + hierarchy age (didactic)
 - `analysis/fe_ka_latency.py`: Fe Kα latency demo (busy-substrate index)
 - `mrrc_alpha_variation_report.txt`: generated analysis report
 - `mrrc_alpha_variation_analysis.png`: generated summary figure
@@ -78,9 +79,12 @@ make ca-legacy  # CA with legacy pay-to-maintain behavior
 make ca-drive   # CA with active drive only (no expansion)
 make markov     # Markov toy (entropy, dS/dt, costs)
 make life       # MRRC Life animation (mp4 or fallback png)
+make genesis    # MRRC-Genesis (yield + dissipation emergent locking)
+make mrrc-doc   # Build What_is_MRRC.tex to PDF (if pdflatex present)
 ```
 
 Note on simulations: The CA is a visualization aid. It separates “maintenance” vs “chargeable change” costs and lets you toggle weak-field coupling, drive, and expansion. It is not a physical simulation of MRRC dynamics; parameters (e.g., weak-field flips) are visually exaggerated to make effects apparent.
+Genesis adds an energy budget, yield threshold, dissipation tax, and hierarchy aging; Life shows hierarchical locking/growth with leaders; Markov focuses on entropy trajectories. All are illustrative lenses on MRRC principles, not predictive physics engines.
 
 CI artifacts:
 - On push to `main`, GitHub Actions uploads `mrrc_alpha_variation_report.txt` and `mrrc_alpha_variation_analysis.png` to the workflow run artifacts.

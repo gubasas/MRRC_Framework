@@ -1,0 +1,27 @@
+# MRRC Toy Simulator: Differences Build Memory
+# Run this in VS Code (Python extension needed)
+
+class MRRC:
+    def __init__(self):
+        self.sigma = 0  # Current "state" (e.g., a number or input)
+        self.r = 0      # Reference (what was before)
+        self.delta = 0  # Difference (how much changed)
+        self.m = []     # Memory (stored differences, bounded to 5 for simplicity)
+    
+    def process(self, new_input):
+        self.sigma = new_input
+        self.delta = abs(self.sigma - self.r)  # Simple difference
+        if len(self.m) < 5:  # Bounded memory (PC4 style)
+            self.m.append(self.delta)
+        else:
+            print("Memory full — overwriting oldest")
+            self.m.pop(0)  # Drop old record
+            self.m.append(self.delta)
+        self.r = self.sigma  # Update reference
+        print(f"Input: {new_input}, Delta: {self.delta}, Memory: {self.m}")
+
+# Test it
+mrrc = MRRC()
+inputs = [1, 3, 2, 5, 4, 7, 6]  # Random numbers to "process"
+for inp in inputs:
+    mrrc.process(inp)

@@ -1,6 +1,6 @@
 PY := /usr/local/bin/python3
 
-.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive markov life fe clean
+.PHONY: data analysis quasar clocks cmb scan hooks gitleaks ds ca ca-legacy ca-drive markov life genesis mrrc-doc fe clean
 
 data:
 	$(PY) fetch_alpha_data.py
@@ -43,6 +43,12 @@ markov:
 
 life:
 	$(PY) simulations/mrrc_life.py
+
+genesis:
+	$(PY) simulations/mrrc_genesis.py --outfile mrrc_genesis.gif --frames 300
+
+mrrc-doc:
+	command -v pdflatex >/dev/null 2>&1 && pdflatex -interaction=nonstopmode -halt-on-error -output-directory docs docs/What_is_MRRC.tex || echo 'pdflatex not installed; skipping PDF build'
 
 fe:
 	$(PY) analysis/fe_ka_latency.py

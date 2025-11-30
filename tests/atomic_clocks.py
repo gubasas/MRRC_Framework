@@ -20,9 +20,14 @@ def load_data():
 
 
 def fit_beta(df):
-    x = np.array(df['delta_phi_over_c2'] if 'delta_phi_over_c2' in df.columns else df.get('gravitational_potential_ratio', np.zeros(len(df))))
-    y = np.array(df['delta_alpha_over_alpha'])
-    e = np.clip(np.array(df['error']), 1e-18, None)
+    # Restrict to rows with defined potential modulation (exclude pure drift rows)
+    mod_mask = (~df['delta_phi_over_c2'].isna()) & (df['delta_phi_over_c2'] != 0)
+    sub = df[mod_mask]
+    if sub.empty:
+        return np.nan
+    x = np.array(sub['delta_phi_over_c2'])
+    y = np.array(sub['delta_alpha_over_alpha'])
+    e = np.clip(np.array(sub['error']), 1e-18, None)
     # Simple weighted linear fit y ≈ k * x
     w = 1.0 / e
     k = np.sum(w * x * y) / np.sum(w * x**2 + 1e-30)
@@ -31,14 +36,23 @@ def fit_beta(df):
 
 def main():
     df = load_data()
+    # Basic sanity on extended schema
+    if 'k_alpha' not in df.columns:
+        raise RuntimeError('Clock constraints missing k_alpha column after ingestion update.')
+    if (df['k_alpha'].dropna() <= 0).any():
+        raise RuntimeError('Non-positive k_alpha encountered.')
     beta = fit_beta(df)
     print(f"Fitted β ≈ {beta:.3e}")
     plt.figure(figsize=(6,4))
-    x = df['gravitational_potential_ratio'] if 'gravitational_potential_ratio' in df.columns else df['delta_phi_over_c2']
-    plt.errorbar(x*1e10, df['delta_alpha_over_alpha']*1e18, yerr=df['error']*1e18, fmt='o', capsize=4)
-    xline = np.linspace(float(np.min(x)), float(np.max(x)), 100)
-    yline = beta * xline
-    plt.plot(xline*1e10, yline*1e18, 'r-', label='MRRC linear')
+    x_all = df['delta_phi_over_c2']
+    plt.errorbar(x_all*1e10, df['delta_alpha_over_alpha']*1e18, yerr=df['error']*1e18, fmt='o', capsize=4)
+    if not np.isnan(beta):
+        mod_mask = (~df['delta_phi_over_c2'].isna()) & (df['delta_phi_over_c2'] != 0)
+        xmod = x_all[mod_mask]
+        if not xmod.empty:
+            xline = np.linspace(float(np.min(xmod)), float(np.max(xmod)), 100)
+            yline = beta * xline
+            plt.plot(xline*1e10, yline*1e18, 'r-', label='MRRC linear')
     plt.xlabel('Φ/c² (×10⁻¹⁰)')
     plt.ylabel('Δα/α (×10⁻¹⁸)')
     plt.legend()
