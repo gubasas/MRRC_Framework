@@ -1,4 +1,9 @@
 # MRRC_Framework
+N.B. V6 was retracted and should be treated as speculative (non-scientific)
+for latest standing Framework paper MRRC_CT_V4 and latest Kosmos runs please use https://github.com/gubasas/MRRC-Framework-V3
+
+
+
 
 **MRRC V5.1** — Minimal Recorded Relational Change framework: α-variation analysis, simulations, and empirical validation.
 
